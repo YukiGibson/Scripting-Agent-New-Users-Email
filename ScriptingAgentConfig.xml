@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Configuration version="1.0">
+	<Feature Name="Send" Cmdlets="new-mailbox">
+		<ApiCall Name="OnComplete">
+		# The OnComplete on the API call is important, that means that the next cmdlets will run AFTER the cmdlet has finished running
+		# and writting it's properties to AD. For that reason we can get the new mailbox by using Get-Mailbox
+
+		#parameter list:
+		#param([ProvisioningHandler]$provisioningHandler, [IConfigurable]$readOnlyIConfigurable)
+
+		# First we need to connect to Exchange Server 
+		$smtpserver = "mail.contoso.com"
+
+		# I added the HTML and PNG on the CmdletExtensionAgents folder
+		$emailbody = "E:\Program Files\Bin\CmdletExtensionAgents\images\email.html"
+		$image1 = "E:\Program Files\Bin\CmdletExtensionAgents\images\image1.png"
+		$image2 = "E:\Program Files\Bin\CmdletExtensionAgents\images\image2.png"
+		$emailfrom = "welcome@contoso.com"
+
+		# Create html files and mail them to the users
+		#Include pictures 
+		$pic1 = New-Object Net.Mail.Attachment($image1)
+		$pic1.contentType.Mediatype = "image/png"
+		$pic1.Contentid = "Attachment1" 
+		$pic2 = New-Object Net.Mail.Attachment($image2)
+		$pic2.contentType.Mediatype = "image/png"
+		$pic2.Contentid = "Attachment2" 
+		
+		# I used the UPN to search for the mailbox we just created, 
+
+		# The provisioningHandler will get the parameters added to the New-Mailbox cmdlet
+		$userprincipalname = $provisioningHandler.UserSpecifiedParameters["UserPrincipalName"]
+
+		# The mailbox can get retrieved by using the -Filter parameter and any Property of your liking
+		$user = Get-Mailbox -Filter {UserPrincipalName -eq $userprincipalname}
+
+		# compose email message
+		$emailmsg = New-Object System.Net.Mail.MailMessage
+		$emailmsg.From = $emailfrom
+		$emailmsg.to.add($user.PrimarySMTPAddress.ToString())
+		
+		$emailmsg.IsBodyHtml = $true
+		$emailmsg.subject = "Html email test"
+		$emailmsg.Attachments.add($pic1)
+		$emailmsg.Attachments.add($pic2)
+
+		# Import the HTML file as plain text
+		$orgmsgbody = Get-Content $emailbody
+		$msgbody = @()
+
+		# Replace strings in the HTML body to add variables
+
+		# Changing variables
+		$Test1 = "Welcome!"
+		$Test2 = $provisioningHandler.UserSpecifiedParameters["DisplayName"]
+
+		foreach ($line in $orgmsgbody) {
+			# If more variables are added to the message, just copy and modify the lines below.
+			$line = $line `
+			-Replace "VARTest1",$Test1 `
+			-Replace "VARTest2", $Test2
+			$msgbody += $line
+		}
+		$emailmsg.body = $msgbody
+
+		#send email message ( comment to test without mail ) 
+
+		$smtp = New-Object Net.Mail.SmtpClient($smtpserver)
+		$smtp.UseDefaultCredentials = $true
+		$smtp.EnableSsl = $true
+		$smtp.Send($emailmsg) 
+		</ApiCall>
+	</Feature>
+</Configuration>  
